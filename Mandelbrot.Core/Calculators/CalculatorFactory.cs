@@ -26,7 +26,7 @@ namespace Mandelbrot.Core.Calculators
 			RegisterSafe(() => new CpuParallelCalculator());
 			RegisterSafe(() => new CpuSingleThreadCalculator());
 
-			RegisterSafe(() => new GpuILGPUCalculatorSimple());
+			//RegisterSafe(() => new GpuILGPUCalculatorSimple());
 			RegisterSafe(() => new GpuClooCalculator());
 
 			Console.WriteLine("\n════════════════════════════════════════════");

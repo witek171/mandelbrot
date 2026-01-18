@@ -28,36 +28,37 @@ namespace Mandelbrot.Core.Calculators
                 __global int* output,
                 const int width,
                 const int height,
-                const double minReal,
-                const double maxImaginary,
-                const double xScale,
-                const double yScale,
+                const float minReal,        // ZMIANA: float
+                const float maxImaginary,   // ZMIANA: float
+                const float xScale,         // ZMIANA: float
+                const float yScale,         // ZMIANA: float
                 const int maxIterations)
             {
                 int px = get_global_id(0);
                 int py = get_global_id(1);
-                
+        
                 if (px >= width || py >= height)
                     return;
-                
-                double x0 = minReal + px * xScale;
-                double y0 = maxImaginary - py * yScale;
-                
-                double x = 0.0;
-                double y = 0.0;
-                double x2 = 0.0;
-                double y2 = 0.0;
+        
+                // ZMIANA: rzutowanie na (float) i literały f
+                float x0 = minReal + (float)px * xScale;
+                float y0 = maxImaginary - (float)py * yScale;
+        
+                float x = 0.0f;
+                float y = 0.0f;
+                float x2 = 0.0f;
+                float y2 = 0.0f;
                 int iteration = 0;
-                
-                while (x2 + y2 <= 4.0 && iteration < maxIterations)
+        
+                while (x2 + y2 <= 4.0f && iteration < maxIterations)
                 {
-                    y = 2.0 * x * y + y0;
+                    y = 2.0f * x * y + y0;
                     x = x2 - y2 + x0;
                     x2 = x * x;
                     y2 = y * y;
                     iteration++;
                 }
-                
+        
                 output[py * width + px] = iteration;
             }
         ";
@@ -215,10 +216,10 @@ namespace Mandelbrot.Core.Calculators
             _kernel.SetMemoryArgument(0, outputBuffer);
             _kernel.SetValueArgument(1, width);
             _kernel.SetValueArgument(2, height);
-            _kernel.SetValueArgument(3, viewPort.MinReal);
-            _kernel.SetValueArgument(4, viewPort.MaxImaginary);
-            _kernel.SetValueArgument(5, xScale);
-            _kernel.SetValueArgument(6, yScale);
+            _kernel.SetValueArgument(3, (float)viewPort.MinReal);
+            _kernel.SetValueArgument(4, (float)viewPort.MaxImaginary);
+            _kernel.SetValueArgument(5, (float)xScale);
+            _kernel.SetValueArgument(6, (float)yScale);
             _kernel.SetValueArgument(7, maxIterations);
 
             // Uruchom kernel

@@ -107,7 +107,24 @@ namespace Mandelbrot.Core.Calculators
     /// </summary>
     public class CpuParallelCalculator : IMandelbrotCalculator
     {
-        public string Name => $"CPU Parallel ({Environment.ProcessorCount} wątków)";
+        // ZMIANA: Dodajemy pole do przechowywania liczby wątków
+        private int _threadCount = Environment.ProcessorCount;
+
+        // ZMIANA: Dodajemy właściwość ThreadCount, której szuka kompilator
+        public int ThreadCount
+        {
+            get => _threadCount;
+            set
+            {
+                if (value < 1)
+                    _threadCount = Environment.ProcessorCount;
+                else
+                    _threadCount = value;
+            }
+        }
+
+        // ZMIANA: Nazwa będzie teraz dynamicznie pokazywać aktualną liczbę wątków
+        public string Name => $"CPU Parallel ({_threadCount} wątków)";
         public bool IsAvailable => true;
 
         public RenderResult Render(int width, int height, ViewPort viewPort,
@@ -128,7 +145,8 @@ namespace Mandelbrot.Core.Calculators
             int stride = bitmapData.Stride;
             byte[] pixels = new byte[height * stride];
 
-            Parallel.For(0, height, py =>
+            // ZMIANA: ParallelOptions przekazuje teraz naszą zmienną _threadCount
+            Parallel.For(0, height, new ParallelOptions { MaxDegreeOfParallelism = _threadCount }, py =>
             {
                 double y0 = viewPort.MaxImaginary - (py + 0.5) * yScale;
 
@@ -158,12 +176,15 @@ namespace Mandelbrot.Core.Calculators
             {
                 Bitmap = bitmap,
                 RenderTimeMs = stopwatch.ElapsedMilliseconds,
-                ThreadsUsed = Environment.ProcessorCount,
+                ThreadsUsed = _threadCount, // ZMIANA: Zwracamy faktycznie użytą liczbę
                 CalculatorName = Name,
                 ViewPort = viewPort.Clone(),
                 ZoomLevel = viewPort.CalculateZoomLevel()
             };
         }
+    
+    // Pamiętaj o zachowaniu metody CalculateSmoothIterations...
+
 
         private double CalculateSmoothIterations(double x0, double y0, int maxIterations)
         {

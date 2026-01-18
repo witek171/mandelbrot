@@ -18,40 +18,48 @@ namespace Mandelbrot.ConsoleTest
             var runner = new RenderTestRunner();
             var palette = new ColorPalette();
 
-            string outDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "MandelbrotResults"
-            );
-
+            string outDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MandelbrotResults");
             Directory.CreateDirectory(outDir);
 
-            foreach (var name in factory.AvailableCalculators)
-            {
-                var calc = factory.GetCalculator(name);
+            var calc = (CpuParallelCalculator)factory.GetCalculator("CPU Parallel (8 wątków)");
 
-                Console.WriteLine($"Testowanie: {name}...");
+            // --- NOWA LOGIKA: Nazwa z datą i godziną ---
+            // Pobieramy aktualny czas i formatujemy go: ddMMHHmm (dzień, miesiąc, godzina, minuta)
+            string timestamp = DateTime.Now.ToString("ddMHHmm");
+            string filePath = Path.Combine(outDir, $"Skalowalnosc_{timestamp}.csv");
+            // -------------------------------------------
+
+            Console.WriteLine("╔════════════════════════════════════════════╗");
+            Console.WriteLine($"║    START TESTU (Zapis do: {Path.GetFileName(filePath)})");
+            Console.WriteLine("╚════════════════════════════════════════════╝\n");
+
+            for (int t = 1; t <= 64; t++)
+            {
+                calc.ThreadCount = t;
+
+                Console.Write($"Testowanie: {t,2} wątków... ");
 
                 var result = runner.Run(
                     calc,
-                    width: 1000,
-                    height: 1000,
+                    width: 2000,
+                    height: 2000,
                     viewPort: ViewPort.Default,
-                    maxIterations: 500,
+                    maxIterations: 1000,
                     palette: palette
                 );
 
-                // NAPRAWA BŁĘDU ŚCIEŻKI: Usuwamy znaki specjalne z nazwy pliku
-                string safeName = name.Replace("/", "_")
-                                      .Replace("\\", "_")
-                                      .Replace(":", "_")
-                                      .Replace("(", "")
-                                      .Replace(")", "");
+                // Usunięcie kolumny z "krzaczkami"
+                result.CalculatorName = "Parallel";
 
-                string file = Path.Combine(outDir, $"{safeName}.csv");
+                CsvResultWriter.Append(filePath, result);
 
-                CsvResultWriter.Append(file, result);
-                Console.WriteLine($"✓ Wynik zapisany w: {safeName}.csv");
+                Console.WriteLine($"Czas: {result.RenderTimeMs,5} ms");
             }
+
+            Console.WriteLine("\nTest zakończony. Plik zapisany pomyślnie.");
+            calc.Dispose();
+            Console.ReadKey();
         }
     }
+    
 }

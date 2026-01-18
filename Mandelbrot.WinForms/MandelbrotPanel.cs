@@ -185,9 +185,28 @@ namespace Mandelbrot.WinForms
 
             if (_isSelecting)
             {
-                _selectionEnd = new Point(
-                    Math.Clamp(e.X, 0, Width),
-                    Math.Clamp(e.Y, 0, Height));
+                double panelAspect = (double)Width / Height;
+
+                int dx = e.X - _selectionStart.X;
+                int dy = e.Y - _selectionStart.Y;
+
+                int newWidth, newHeight;
+
+                if (Math.Abs(dx) > Math.Abs(dy * panelAspect))
+                {
+                    newWidth = dx;
+                    newHeight = (int)(Math.Abs(dx) / panelAspect);
+                    if (dy < 0) newHeight = -newHeight;
+                }
+                else
+                {
+                    newHeight = dy;
+                    newWidth = (int)(Math.Abs(dy) * panelAspect);
+                    if (dx < 0) newWidth = -newWidth;
+                }
+
+                _selectionEnd = new Point(_selectionStart.X + newWidth, _selectionStart.Y + newHeight);
+
                 this.Invalidate();
             }
         }

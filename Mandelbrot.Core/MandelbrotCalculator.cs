@@ -126,112 +126,124 @@ namespace Mandelbrot.Core
 			};
 		}
 
-		/// <summary>
-		/// Renderuje fraktal Mandelbrota w trybie wielowątkowym z użyciem Parallel.For.
-		/// Każdy wiersz jest przetwarzany przez osobny wątek.
-		/// </summary>
-		public RenderResult RenderMultiThreaded(
-			int width,
-			int height,
-			ViewPort viewPort,
-			int maxIterations,
-			ColorPalette colorPalette,
-			int supersampleLevel = 1)
-		{
-			var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        /// <summary>
+        /// Renderuje fraktal Mandelbrota w trybie wielowątkowym z użyciem Parallel.For.
+        /// Każdy wiersz jest przetwarzany przez osobny wątek.
+        /// </summary>
 
-			Bitmap bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+        /// <summary>
+        /// Renderuje fraktal Mandelbrota w trybie wielowątkowym z użyciem Parallel.For.
+        /// </summary>
+        public RenderResult RenderMultiThreaded(
+            int width,
+            int height,
+            ViewPort viewPort,
+            int maxIterations,
+            ColorPalette colorPalette,
+            int threadCount = -1, // <--- NOWY PARAMETR (domyślnie -1 = automat)
+            int supersampleLevel = 1)
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-			double xScale = viewPort.Width / width;
-			double yScale = viewPort.Height / height;
-			double ssStep = 1.0 / supersampleLevel;
-			double ssWeight = 1.0 / (supersampleLevel * supersampleLevel);
+            Bitmap bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
 
-			BitmapData bitmapData = bitmap.LockBits(
-				new Rectangle(0, 0, width, height),
-				ImageLockMode.WriteOnly,
-				PixelFormat.Format32bppArgb);
+            double xScale = viewPort.Width / width;
+            double yScale = viewPort.Height / height;
+            double ssStep = 1.0 / supersampleLevel;
+            double ssWeight = 1.0 / (supersampleLevel * supersampleLevel);
 
-			int stride = bitmapData.Stride;
-			byte[] pixels = new byte[height * stride];
+            BitmapData bitmapData = bitmap.LockBits(
+                new Rectangle(0, 0, width, height),
+                ImageLockMode.WriteOnly,
+                PixelFormat.Format32bppArgb);
 
-			int threadsUsed = Environment.ProcessorCount;
+            int stride = bitmapData.Stride;
+            byte[] pixels = new byte[height * stride];
 
-			// Parallel.For - każdy wiersz przetwarzany równolegle
-			Parallel.For(0, height, new ParallelOptions { MaxDegreeOfParallelism = threadsUsed }, py =>
-			{
-				for (int px = 0; px < width; px++)
-				{
-					Color finalColor;
+            // --- ZMIANA: Ustalanie liczby wątków ---
+            int threadsUsed;
+            if (threadCount > 0)
+                threadsUsed = threadCount; // Używamy wartości z suwaka
+            else
+                threadsUsed = Environment.ProcessorCount; // Automat (wszystkie rdzenie)
+                                                          // ---------------------------------------
 
-					if (supersampleLevel == 1)
-					{
-						double x0 = viewPort.MinReal + (px + 0.5) * xScale;
-						double y0 = viewPort.MaxImaginary - (py + 0.5) * yScale;
+            // Parallel.For - każdy wiersz przetwarzany równolegle
+            Parallel.For(0, height, new ParallelOptions { MaxDegreeOfParallelism = threadsUsed }, py =>
+            {
+                for (int px = 0; px < width; px++)
+                {
+                    Color finalColor;
 
-						double smoothValue = CalculateSmoothIterations(x0, y0, maxIterations);
-						finalColor = colorPalette.GetSmoothColor(smoothValue, maxIterations);
-					}
-					else
-					{
-						double r = 0, g = 0, b = 0;
+                    if (supersampleLevel == 1)
+                    {
+                        double x0 = viewPort.MinReal + (px + 0.5) * xScale;
+                        double y0 = viewPort.MaxImaginary - (py + 0.5) * yScale;
 
-						for (int sy = 0; sy < supersampleLevel; sy++)
-						{
-							for (int sx = 0; sx < supersampleLevel; sx++)
-							{
-								double x0 = viewPort.MinReal + (px + (sx + 0.5) * ssStep) * xScale;
-								double y0 = viewPort.MaxImaginary - (py + (sy + 0.5) * ssStep) * yScale;
+                        double smoothValue = CalculateSmoothIterations(x0, y0, maxIterations);
+                        finalColor = colorPalette.GetSmoothColor(smoothValue, maxIterations);
+                    }
+                    else
+                    {
+                        // Obsługa supersamplingu (bez zmian)
+                        double r = 0, g = 0, b = 0;
 
-								double smoothValue = CalculateSmoothIterations(x0, y0, maxIterations);
-								Color sampleColor = colorPalette.GetSmoothColor(smoothValue, maxIterations);
+                        for (int sy = 0; sy < supersampleLevel; sy++)
+                        {
+                            for (int sx = 0; sx < supersampleLevel; sx++)
+                            {
+                                double x0 = viewPort.MinReal + (px + (sx + 0.5) * ssStep) * xScale;
+                                double y0 = viewPort.MaxImaginary - (py + (sy + 0.5) * ssStep) * yScale;
 
-								r += sampleColor.R * ssWeight;
-								g += sampleColor.G * ssWeight;
-								b += sampleColor.B * ssWeight;
-							}
-						}
+                                double smoothValue = CalculateSmoothIterations(x0, y0, maxIterations);
+                                Color sampleColor = colorPalette.GetSmoothColor(smoothValue, maxIterations);
 
-						finalColor = Color.FromArgb(255,
-							(int)Math.Min(255, r),
-							(int)Math.Min(255, g),
-							(int)Math.Min(255, b));
-					}
+                                r += sampleColor.R * ssWeight;
+                                g += sampleColor.G * ssWeight;
+                                b += sampleColor.B * ssWeight;
+                            }
+                        }
 
-					int offset = py * stride + px * 4;
-					pixels[offset] = finalColor.B;
-					pixels[offset + 1] = finalColor.G;
-					pixels[offset + 2] = finalColor.R;
-					pixels[offset + 3] = 255;
-				}
-			});
+                        finalColor = Color.FromArgb(255,
+                            (int)Math.Min(255, r),
+                            (int)Math.Min(255, g),
+                            (int)Math.Min(255, b));
+                    }
 
-			Marshal.Copy(pixels, 0, bitmapData.Scan0, pixels.Length);
-			bitmap.UnlockBits(bitmapData);
+                    int offset = py * stride + px * 4;
+                    pixels[offset] = finalColor.B;
+                    pixels[offset + 1] = finalColor.G;
+                    pixels[offset + 2] = finalColor.R;
+                    pixels[offset + 3] = 255;
+                }
+            });
 
-			stopwatch.Stop();
+            Marshal.Copy(pixels, 0, bitmapData.Scan0, pixels.Length);
+            bitmap.UnlockBits(bitmapData);
 
-			return new RenderResult
-			{
-				Bitmap = bitmap,
-				RenderTimeMs = stopwatch.ElapsedMilliseconds,
-				ThreadsUsed = threadsUsed,
-				ViewPort = viewPort.Clone(),
-				ZoomLevel = viewPort.CalculateZoomLevel()
-			};
-		}
+            stopwatch.Stop();
 
-		/// <summary>
-		/// Oblicza "gładką" liczbę iteracji dla płynnego kolorowania.
-		/// Używa wzoru: n + 1 - log(log|z|) / log(2)
-		///
-		/// To pozwala na PŁYNNE przejścia kolorów zamiast ostrych pasm.
-		/// </summary>
-		/// <param name="x0">Część rzeczywista punktu c</param>
-		/// <param name="y0">Część urojona punktu c</param>
-		/// <param name="maxIterations">Maksymalna liczba iteracji</param>
-		/// <returns>Gładka wartość iteracji (może być ułamkowa)</returns>
-		private double CalculateSmoothIterations(double x0, double y0, int maxIterations)
+            return new RenderResult
+            {
+                Bitmap = bitmap,
+                RenderTimeMs = stopwatch.ElapsedMilliseconds,
+                ThreadsUsed = threadsUsed, // Zwracamy użytą liczbę wątków (do statystyk)
+                ViewPort = viewPort.Clone(),
+                ZoomLevel = viewPort.CalculateZoomLevel()
+            };
+        }
+
+        /// <summary>
+        /// Oblicza "gładką" liczbę iteracji dla płynnego kolorowania.
+        /// Używa wzoru: n + 1 - log(log|z|) / log(2)
+        ///
+        /// To pozwala na PŁYNNE przejścia kolorów zamiast ostrych pasm.
+        /// </summary>
+        /// <param name="x0">Część rzeczywista punktu c</param>
+        /// <param name="y0">Część urojona punktu c</param>
+        /// <param name="maxIterations">Maksymalna liczba iteracji</param>
+        /// <returns>Gładka wartość iteracji (może być ułamkowa)</returns>
+        private double CalculateSmoothIterations(double x0, double y0, int maxIterations)
 		{
 			// Optymalizacja: sprawdzenie czy punkt jest w głównej kardioicie lub bańce
 			// To znacząco przyspiesza renderowanie dla dużej części zbioru

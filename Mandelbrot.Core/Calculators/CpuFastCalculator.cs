@@ -13,7 +13,22 @@ namespace Mandelbrot.Core.Calculators
     /// </summary>
     public class CpuFastCalculator : IMandelbrotCalculator
     {
-        private readonly int _threadCount;
+        // ZMIANA 1: Usunięto 'readonly', żeby można było zmieniać liczbę wątków
+        private int _threadCount;
+
+        // ZMIANA 2: Właściwość do sterowania wątkami z zewnątrz (MainForm)
+        public int ThreadCount
+        {
+            get => _threadCount;
+            set
+            {
+                // Jeśli ktoś poda < 1 (np. błąd), ustawiamy automat
+                if (value < 1)
+                    _threadCount = Environment.ProcessorCount;
+                else
+                    _threadCount = value;
+            }
+        }
 
         public string Name => $"CPU Fast ({_threadCount} wątków)";
         public bool IsAvailable => true;
@@ -43,6 +58,7 @@ namespace Mandelbrot.Core.Calculators
             double maxImaginary = viewPort.MaxImaginary;
 
             // Faza 1: Obliczenia (czyste math, bez kolorowania)
+            // Tutaj 'Parallel.For' użyje naszej zaktualizowanej liczby wątków (_threadCount)
             Parallel.For(0, height, new ParallelOptions { MaxDegreeOfParallelism = _threadCount }, py =>
             {
                 double y0 = maxImaginary - (py + 0.5) * yScale;
@@ -53,7 +69,12 @@ namespace Mandelbrot.Core.Calculators
                     double x0 = minReal + (px + 0.5) * xScale;
 
                     int idx = rowOffset + px;
-                    CalculatePoint(x0, y0, maxIterations, out iterationData[idx], out smoothData[idx]);
+                    int idx_iter;
+                    double idx_smooth;
+                    // Mała zmiana w wywołaniu metody (C# wymaga zmiennych lokalnych dla out w lambda)
+                    CalculatePoint(x0, y0, maxIterations, out idx_iter, out idx_smooth);
+                    iterationData[idx] = idx_iter;
+                    smoothData[idx] = idx_smooth;
                 }
             });
 
@@ -71,7 +92,8 @@ namespace Mandelbrot.Core.Calculators
             Color[] palette = colorPalette.GeneratePalette(2048);
             int paletteLength = palette.Length;
 
-            Parallel.For(0, height, py =>
+            // Tutaj też używamy ograniczenia wątków!
+            Parallel.For(0, height, new ParallelOptions { MaxDegreeOfParallelism = _threadCount }, py =>
             {
                 int rowOffset = py * width;
                 int pixelRowOffset = py * stride;

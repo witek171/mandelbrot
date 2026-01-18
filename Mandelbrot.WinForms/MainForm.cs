@@ -32,6 +32,8 @@ namespace Mandelbrot.WinForms
         private Label _precisionWarningLabel;
         private ProgressBar _progressBar;
         private CheckBox _autoIterationsCheckBox;
+        private NumericUpDown _threadsNumeric;
+        private Label _threadInfoLabel;
 
         public MainForm()
         {
@@ -101,6 +103,16 @@ namespace Mandelbrot.WinForms
             {
                 _currentCalculator = _calculatorFactory.GetCalculator(_calculatorComboBox.SelectedItem.ToString());
                 UpdateCalculatorInfo();
+
+                // --- NOWA LOGIKA BLOKOWANIA SUWAKA ---
+                // Sprawdzamy czy nazwa zawiera "Parallel" (dostosuj do swoich nazw w menu)
+                bool isParallel = _currentCalculator.Name.Contains("Parallel");
+
+                _threadsNumeric.Enabled = isParallel;
+                _threadInfoLabel.Visible = isParallel;
+
+                // Wizualne wyszarzenie
+                _threadsNumeric.BackColor = isParallel ? Color.FromArgb(45, 45, 48) : Color.FromArgb(30, 30, 30);
             };
 
             _controlPanel.Controls.Add(_calculatorComboBox);
@@ -117,6 +129,53 @@ namespace Mandelbrot.WinForms
             };
             _controlPanel.Controls.Add(_calculatorInfoLabel);
             y += 40;
+
+            // === NOWY KOD: Kontrola Wątków ===
+            AddLabel("Liczba wątków CPU:", 9, FontStyle.Regular, Color.LightGray, ref y);
+
+            int maxLogicalProcessors = Environment.ProcessorCount;
+
+            _threadsNumeric = new NumericUpDown
+            {
+                Location = new Point(15, y),
+                Size = new Size(140, 28),
+                Minimum = 1,
+                Maximum = 64, // Pozwalamy na więcej niż mamy (do testów!)
+                Value = maxLogicalProcessors, // Domyślnie tyle ile ma Twój laptop
+                Font = new Font("Segoe UI", 10),
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.White
+            };
+
+            // Etykieta informacyjna obok
+            _threadInfoLabel = new Label
+            {
+                Text = $"✅ Sprzętowo ({maxLogicalProcessors}/{maxLogicalProcessors})",
+                Location = new Point(165, y + 3),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8),
+                ForeColor = Color.LightGreen
+            };
+
+            // Logika zmiany kolorów (Ostrzeganie o przeciążeniu)
+            _threadsNumeric.ValueChanged += (s, e) =>
+            {
+                int selected = (int)_threadsNumeric.Value;
+                if (selected <= maxLogicalProcessors)
+                {
+                    _threadInfoLabel.Text = $"✅ W ramach zasobów CPU ({selected}/{maxLogicalProcessors})";
+                    _threadInfoLabel.ForeColor = Color.LightGreen;
+                }
+                else
+                {
+                    _threadInfoLabel.Text = "⚠ Przekracza liczbę procesorów logicznych";
+                    _threadInfoLabel.ForeColor = Color.Orange;
+                }
+            };
+
+            _controlPanel.Controls.Add(_threadsNumeric);
+            _controlPanel.Controls.Add(_threadInfoLabel);
+            y += 35;
 
             AddSeparator(ref y);
 

@@ -48,7 +48,6 @@ namespace Mandelbrot.ConsoleTest
                     palette: palette
                 );
 
-                // Usunięcie kolumny z "krzaczkami"
                 result.CalculatorName = "Parallel";
 
                 CsvResultWriter.Append(filePath, result);

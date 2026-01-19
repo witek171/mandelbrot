@@ -34,6 +34,8 @@ namespace Mandelbrot.WinForms
         private CheckBox _autoIterationsCheckBox;
         private NumericUpDown _threadsNumeric;
         private Label _threadInfoLabel;
+        private Label _gpuStatusLabel;
+        private Label _threadsTitleLabel;
 
         public MainForm()
         {
@@ -90,30 +92,10 @@ namespace Mandelbrot.WinForms
                 FlatStyle = FlatStyle.Flat
             };
 
-            // Dodanie dostępnych kalkulatorów
             foreach (var name in _calculatorFactory.AvailableCalculators)
             {
                 _calculatorComboBox.Items.Add(name);
             }
-
-            // Wybierz najszybszy jako domyślny
-            var fastestName = _calculatorFactory.GetFastestCalculator().Name;
-            _calculatorComboBox.SelectedItem = fastestName;
-            _calculatorComboBox.SelectedIndexChanged += (s, e) =>
-            {
-                _currentCalculator = _calculatorFactory.GetCalculator(_calculatorComboBox.SelectedItem.ToString());
-                UpdateCalculatorInfo();
-
-                // --- NOWA LOGIKA BLOKOWANIA SUWAKA ---
-                // Sprawdzamy czy nazwa zawiera "Parallel" (dostosuj do swoich nazw w menu)
-                bool isParallel = _currentCalculator.Name.Contains("Parallel");
-
-                _threadsNumeric.Enabled = isParallel;
-                _threadInfoLabel.Visible = isParallel;
-
-                // Wizualne wyszarzenie
-                _threadsNumeric.BackColor = isParallel ? Color.FromArgb(45, 45, 48) : Color.FromArgb(30, 30, 30);
-            };
 
             _controlPanel.Controls.Add(_calculatorComboBox);
             y += 35;
@@ -130,8 +112,19 @@ namespace Mandelbrot.WinForms
             _controlPanel.Controls.Add(_calculatorInfoLabel);
             y += 40;
 
-            // === NOWY KOD: Kontrola Wątków ===
-            AddLabel("Liczba wątków CPU:", 9, FontStyle.Regular, Color.LightGray, ref y);
+            // === NOWY KOD: Kontrola Wątków (NAPRAWIONY) ===
+
+            // ZAMIAST AddLabel -> Tworzymy obiekt ręcznie, żeby przypisać go do zmiennej
+            _threadsTitleLabel = new Label
+            {
+                Text = "Liczba wątków CPU:",
+                Location = new Point(15, y),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9),
+                ForeColor = Color.LightGray
+            };
+            _controlPanel.Controls.Add(_threadsTitleLabel);
+            y += 20; // Ręcznie przesuwamy y
 
             int maxLogicalProcessors = Environment.ProcessorCount;
 
@@ -140,12 +133,23 @@ namespace Mandelbrot.WinForms
                 Location = new Point(15, y),
                 Size = new Size(140, 28),
                 Minimum = 1,
-                Maximum = 64, // Pozwalamy na więcej niż mamy (do testów!)
-                Value = maxLogicalProcessors, // Domyślnie tyle ile ma Twój laptop
+                Maximum = 64,
+                Value = maxLogicalProcessors,
                 Font = new Font("Segoe UI", 10),
                 BackColor = Color.FromArgb(45, 45, 48),
                 ForeColor = Color.White
             };
+
+            _gpuStatusLabel = new Label
+            {
+                Text = "⚡ Obliczenia GPU",
+                Location = new Point(15, y + 5),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10, FontStyle.Italic),
+                ForeColor = Color.Cyan,
+                Visible = false
+            };
+            _controlPanel.Controls.Add(_gpuStatusLabel);
 
             // Etykieta informacyjna obok
             _threadInfoLabel = new Label
@@ -157,7 +161,6 @@ namespace Mandelbrot.WinForms
                 ForeColor = Color.LightGreen
             };
 
-            // Logika zmiany kolorów (Ostrzeganie o przeciążeniu)
             _threadsNumeric.ValueChanged += (s, e) =>
             {
                 int selected = (int)_threadsNumeric.Value;
@@ -215,7 +218,7 @@ namespace Mandelbrot.WinForms
             AddLabel("Paleta kolorów:", 9, FontStyle.Regular, Color.LightGray, ref y);
             _paletteComboBox = CreateComboBox(ref y, new[] {
                 "🌈 Tęczowa", "🔥 Ogień", "🌊 Ocean", "⬛ Szarość",
-                "⚡ Elektryczna", "🌅 Zachód słońca", "🌲 Las", "💡 Neon"
+                "⚡ Elektryczna", "🌅 Zachód słońca", "🌲 Las", "💡Neon"
             });
             _paletteComboBox.SelectedIndex = 0;
             _paletteComboBox.SelectedIndexChanged += (s, e) =>
@@ -301,9 +304,9 @@ namespace Mandelbrot.WinForms
             var instructionLabel = new Label
             {
                 Text = "• Zaznacz obszar myszą → zoom\n" +
-                       "• Scroll → szybki zoom\n" +
-                       "• Prawy przycisk → cofnij\n" +
-                       "• GPU = 50-150x szybciej!",
+                        "• Scroll → szybki zoom\n" +
+                        "• Prawy przycisk → cofnij\n" +
+                        "• GPU = 50-150x szybciej!",
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.FromArgb(130, 130, 130),
                 Location = new Point(15, y),
@@ -333,9 +336,72 @@ namespace Mandelbrot.WinForms
             _mandelbrotPanel.MouseMoved += UpdateCoordinates;
             this.Controls.Add(_mandelbrotPanel);
 
+            _calculatorComboBox.SelectedIndexChanged += (s, e) =>
+            {
+                if (_calculatorComboBox.SelectedItem == null) return;
+
+                _currentCalculator = _calculatorFactory.GetCalculator(_calculatorComboBox.SelectedItem.ToString());
+                UpdateCalculatorInfo();
+
+                string name = _currentCalculator.Name;
+                int maxCores = Environment.ProcessorCount;
+
+                // Bezpieczne sprawdzanie nulli (dla pewności)
+                if (_threadsTitleLabel != null) _threadsTitleLabel.Visible = true;
+                if (_threadInfoLabel != null) _threadInfoLabel.Visible = true;
+                if (_threadsNumeric != null) _threadsNumeric.Visible = true;
+                if (_gpuStatusLabel != null) _gpuStatusLabel.Visible = false;
+                if (_threadsNumeric != null) _threadsNumeric.Enabled = false;
+
+                // --- LOGIKA STEROWANIA PANELEM ---
+
+                if (name.Contains("Parallel"))
+                {
+                    // 1. CPU Parallel -> PEŁNA KONTROLA
+                    _threadsNumeric.Enabled = true;
+                    _threadsNumeric.BackColor = Color.FromArgb(45, 45, 48);
+                    _threadInfoLabel.Text = "✅ Sterowanie ręczne";
+                    _threadInfoLabel.ForeColor = Color.LightGreen;
+                }
+                else if (name.Contains("Fast"))
+                {
+                    // 2. CPU Fast -> AUTOMAT MAX
+                    _threadsNumeric.Value = maxCores;
+                    _threadsNumeric.BackColor = Color.FromArgb(30, 30, 30);
+                    _threadInfoLabel.Text = "🔒 Automat (Max CPU)";
+                    _threadInfoLabel.ForeColor = Color.Gray;
+                }
+                else if (name.Contains("Single") || name.Contains("Jedno"))
+                {
+                    // 3. Jednowątkowy -> TYLKO 1
+                    _threadsNumeric.Value = 1;
+                    _threadsNumeric.BackColor = Color.FromArgb(30, 30, 30);
+                    _threadInfoLabel.Text = "🔒 Tryb jednowątkowy";
+                    _threadInfoLabel.ForeColor = Color.Gray;
+                }
+                else
+                {
+                    // 4. GPU / Hybrid -> UKRYWAMY SUWAK
+                    _threadsNumeric.Visible = false;
+                    _gpuStatusLabel.Visible = true;
+                    _threadInfoLabel.Text = "🚀 Sprzętowa akceleracja";
+                    _threadInfoLabel.ForeColor = Color.Cyan;
+                }
+            };
+
+            // Wybierz domyślny kalkulator
+            var fastestName = _calculatorFactory.GetFastestCalculator().Name;
+            _calculatorComboBox.SelectedItem = fastestName;
+
+            // Wymuś odświeżenie UI
+            if (_calculatorComboBox.Items.Count > 0)
+            {
+                var method = typeof(ComboBox).GetMethod("OnSelectedIndexChanged", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                method?.Invoke(_calculatorComboBox, new object[] { EventArgs.Empty });
+            }
+
             _controlPanel.BringToFront();
         }
-
         private void UpdateCalculatorInfo()
         {
             _calculatorInfoLabel.Text = GetCalculatorDescription(_currentCalculator.Name);

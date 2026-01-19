@@ -124,7 +124,7 @@ namespace Mandelbrot.Core.Calculators
         }
 
         // ZMIANA: Nazwa będzie teraz dynamicznie pokazywać aktualną liczbę wątków
-        public string Name => $"CPU Parallel ({_threadCount} wątków)";
+        public string Name => $"CPU Parallel (wielowątkowy)";
         public bool IsAvailable => true;
 
         public RenderResult Render(int width, int height, ViewPort viewPort,

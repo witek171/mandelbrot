@@ -166,12 +166,12 @@ namespace Mandelbrot.WinForms
                 int selected = (int)_threadsNumeric.Value;
                 if (selected <= maxLogicalProcessors)
                 {
-                    _threadInfoLabel.Text = $"✅ W ramach zasobów CPU ({selected}/{maxLogicalProcessors})";
+                    _threadInfoLabel.Text = $"W ramach zasobów\n({selected}/{maxLogicalProcessors} CPU)";
                     _threadInfoLabel.ForeColor = Color.LightGreen;
                 }
                 else
                 {
-                    _threadInfoLabel.Text = "⚠ Przekracza liczbę procesorów logicznych";
+                    _threadInfoLabel.Text = "Przekracza liczbę\nprocesorów logicznych";
                     _threadInfoLabel.ForeColor = Color.Orange;
                 }
             };

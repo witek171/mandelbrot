@@ -21,7 +21,7 @@ namespace Mandelbrot.ConsoleTest
             string outDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MandelbrotResults");
             Directory.CreateDirectory(outDir);
 
-            var calc = (CpuParallelCalculator)factory.GetCalculator("CPU Parallel (8 wątków)");
+            var calc = new Mandelbrot.Core.Calculators.CpuParallelCalculator();
 
             // --- NOWA LOGIKA: Nazwa z datą i godziną ---
             // Pobieramy aktualny czas i formatujemy go: ddMMHHmm (dzień, miesiąc, godzina, minuta)

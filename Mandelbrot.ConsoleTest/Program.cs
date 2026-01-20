@@ -26,6 +26,12 @@ namespace Mandelbrot.ConsoleTest
             string timestamp = DateTime.Now.ToString("ddMHHmm");
             string filePath = Path.Combine(outDir, $"Skalowalnosc_{timestamp}.csv");
 
+            string cpuName = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "Unknown CPU";
+            string osVersion = Environment.OSVersion.ToString();
+
+            Console.WriteLine($"System: {osVersion}");
+            Console.WriteLine($"Procesor: {cpuName}");
+
             Console.WriteLine("╔════════════════════════════════════════════╗");
             Console.WriteLine($"║    START TESTU (Zapis do: {Path.GetFileName(filePath)})");
             Console.WriteLine("╚════════════════════════════════════════════╝\n");

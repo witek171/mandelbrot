@@ -1,4 +1,4 @@
-﻿using Mandelbrot.Core.Testing;
+﻿using Mandelbrot.ConsoleTest.Testing;
 using System;
 using System.Collections.Generic;
 using System.Linq;

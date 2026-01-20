@@ -6,6 +6,11 @@
 		<Nullable>enable</Nullable>
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>Mandelbrot</RootNamespace>
 	</PropertyGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\Mandelbrot.Core\Mandelbrot.Core.csproj" />
+	</ItemGroup>
 
 </Project>

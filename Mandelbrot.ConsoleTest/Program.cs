@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Mandelbrot.Core;
 using Mandelbrot.Core.Calculators;
-using Mandelbrot.Core.Testing;
+using Mandelbrot.ConsoleTest.Testing;
 
 
 namespace Mandelbrot.ConsoleTest
@@ -14,20 +14,17 @@ namespace Mandelbrot.ConsoleTest
     {
         static void Main()
         {
-            var factory = new CalculatorFactory();
-            var runner = new RenderTestRunner();
-            var palette = new ColorPalette();
+            CalculatorFactory factory = new CalculatorFactory();
+            RenderTestRunner runner = new RenderTestRunner();
+            ColorPalette palette = new ColorPalette();
 
             string outDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MandelbrotResults");
             Directory.CreateDirectory(outDir);
 
             var calc = (CpuParallelCalculator)factory.GetCalculator("CPU Parallel (8 wątków)");
 
-            // --- NOWA LOGIKA: Nazwa z datą i godziną ---
-            // Pobieramy aktualny czas i formatujemy go: ddMMHHmm (dzień, miesiąc, godzina, minuta)
             string timestamp = DateTime.Now.ToString("ddMHHmm");
             string filePath = Path.Combine(outDir, $"Skalowalnosc_{timestamp}.csv");
-            // -------------------------------------------
 
             Console.WriteLine("╔════════════════════════════════════════════╗");
             Console.WriteLine($"║    START TESTU (Zapis do: {Path.GetFileName(filePath)})");
@@ -39,7 +36,7 @@ namespace Mandelbrot.ConsoleTest
 
                 Console.Write($"Testowanie: {t,2} wątków... ");
 
-                var result = runner.Run(
+                RenderTestResult result = runner.Run(
                     calc,
                     width: 2000,
                     height: 2000,

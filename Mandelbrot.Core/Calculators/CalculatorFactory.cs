@@ -18,10 +18,9 @@ namespace Mandelbrot.Core.Calculators
 			Console.WriteLine("║       Inicjalizacja kalkulatorów           ║");
 			Console.WriteLine("╚════════════════════════════════════════════╝\n");
 
-			// Główny - hybrydowy GPU/CPU (rekomendowany)
 			RegisterSafe(() => new GpuHybridCalculator());
 
-			// CPU alternatywy
+
 			RegisterSafe(() => new CpuFastCalculator());
 			RegisterSafe(() => new CpuParallelCalculator());
 			RegisterSafe(() => new CpuSingleThreadCalculator());
@@ -31,7 +30,7 @@ namespace Mandelbrot.Core.Calculators
 
 			Console.WriteLine("\n════════════════════════════════════════════");
 			Console.WriteLine($"  Dostępne: {_availableNames.Count} kalkulatorów");
-			foreach (var name in _availableNames)
+			foreach (string name in _availableNames)
 			{
 				Console.WriteLine($"    • {name}");
 			}
@@ -43,7 +42,7 @@ namespace Mandelbrot.Core.Calculators
 		{
 			try
 			{
-				var calc = factory();
+                IMandelbrotCalculator calc = factory();
 				if (calc.IsAvailable && !_calculators.ContainsKey(calc.Name))
 				{
 					_calculators[calc.Name] = calc;
@@ -61,18 +60,18 @@ namespace Mandelbrot.Core.Calculators
 
 		public IMandelbrotCalculator GetCalculator(string name)
 		{
-			if (_calculators.TryGetValue(name, out var calc))
+			if (_calculators.TryGetValue(name, out IMandelbrotCalculator calc))
 				return calc;
 			return _calculators.Values.First();
 		}
 
 		public IMandelbrotCalculator GetFastestCalculator()
 		{
-			// Hybrid jest najlepszy - automatycznie przełącza GPU/CPU
-			var hybrid = _calculators.Values.FirstOrDefault(c => c.Name.Contains("Hybrid"));
+            // Hybrid jest najlepszy - automatycznie przełącza GPU/CPU
+            IMandelbrotCalculator hybrid = _calculators.Values.FirstOrDefault(c => c.Name.Contains("Hybrid"));
 			if (hybrid != null) return hybrid;
 
-			var fast = _calculators.Values.FirstOrDefault(c => c.Name.Contains("Fast"));
+            IMandelbrotCalculator fast = _calculators.Values.FirstOrDefault(c => c.Name.Contains("Fast"));
 			if (fast != null) return fast;
 
 			return _calculators.Values.First();
@@ -80,7 +79,7 @@ namespace Mandelbrot.Core.Calculators
 
 		public void Dispose()
 		{
-			foreach (var calc in _calculators.Values)
+			foreach (IMandelbrotCalculator calc in _calculators.Values)
 			{
 				try
 				{

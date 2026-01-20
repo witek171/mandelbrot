@@ -1,10 +1,11 @@
-﻿using System;
+﻿using Mandelbrot.Core.Testing;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Mandelbrot.Core.Testing
+namespace Mandelbrot.ConsoleTest.Testing
 {
     public static class CsvResultWriter
     {

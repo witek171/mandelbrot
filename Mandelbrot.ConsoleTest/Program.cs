@@ -18,9 +18,14 @@ namespace Mandelbrot.ConsoleTest
             RenderTestRunner runner = new RenderTestRunner();
             ColorPalette palette = new ColorPalette();
 
-            string outDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MandelbrotResults");
-            Directory.CreateDirectory(outDir);
+            string outDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../MandelbrotTestResults"));
 
+            if (!Directory.Exists(outDir))
+            {
+                Directory.CreateDirectory(outDir);
+            }
+
+            Console.WriteLine(outDir);
             var calc = (CpuParallelCalculator)factory.GetCalculator("CPU Parallel (8 wątków)");
 
             string timestamp = DateTime.Now.ToString("ddMHHmm");

@@ -1,72 +1,55 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Mandelbrot.Core;
+﻿using Mandelbrot.ConsoleTest.Testing;
 using Mandelbrot.Core.Calculators;
-using Mandelbrot.ConsoleTest.Testing;
+using Mandelbrot.Core.Rendering;
 
+namespace Mandelbrot.ConsoleTest;
 
-namespace Mandelbrot.ConsoleTest
+internal class Program
 {
-    class Program
-    {
-        static void Main()
-        {
-            CalculatorFactory factory = new CalculatorFactory();
-            RenderTestRunner runner = new RenderTestRunner();
-            ColorPalette palette = new ColorPalette();
+	private static void Main()
+	{
+		using CalculatorFactory factory = new();
+		RenderTestRunner runner = new();
 
-            string outDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../MandelbrotTestResults"));
+		string outDir = Path.GetFullPath(
+			Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../MandelbrotTestResults"));
 
-            if (!Directory.Exists(outDir))
-            {
-                Directory.CreateDirectory(outDir);
-            }
+		if (!Directory.Exists(outDir))
+			Directory.CreateDirectory(outDir);
 
-            Console.WriteLine(outDir);
-            var calc = (CpuParallelCalculator)factory.GetCalculator("CPU Parallel (8 wątków)");
+		SystemInfo.Print();
 
-            string timestamp = DateTime.Now.ToString("ddMHHmm");
-            string filePath = Path.Combine(outDir, $"Skalowalnosc_{timestamp}.csv");
+		CpuParallelCalculator calc = (CpuParallelCalculator)factory.GetCalculator("CPU Parallel");
 
-            string cpuName = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "Unknown CPU";
-            string osVersion = Environment.OSVersion.ToString();
+		string timestamp = DateTime.Now.ToString("ddMMHHmm");
+		string filePath = Path.Combine(outDir, $"Skalowalnosc_{timestamp}.csv");
 
-            Console.WriteLine($"System: {osVersion}");
-            Console.WriteLine($"Procesor: {cpuName}");
+		CsvResultWriter.WriteHeader(filePath);
 
-            Console.WriteLine("╔════════════════════════════════════════════╗");
-            Console.WriteLine($"║    START TESTU (Zapis do: {Path.GetFileName(filePath)})");
-            Console.WriteLine("╚════════════════════════════════════════════╝\n");
+		Console.WriteLine();
+		Console.WriteLine($"Zapis do: {filePath}");
+		Console.WriteLine();
 
-            for (int t = 1; t <= 64; t++)
-            {
-                calc.ThreadCount = t;
+		for (int t = 1; t <= 64; t++)
+		{
+			calc.ThreadCount = t;
 
-                Console.Write($"Testowanie: {t,2} wątków... ");
+			Console.Write($"Testowanie: {t,2} wątków... ");
 
-                RenderTestResult result = runner.Run(
-                    calc,
-                    width: 2000,
-                    height: 2000,
-                    viewPort: ViewPort.Default,
-                    maxIterations: 1000,
-                    palette: palette
-                );
+			RenderTestResult result = runner.Run(
+				calc,
+				2000,
+				2000,
+				ViewPort.Default,
+				1000,
+				t);
 
-                result.CalculatorName = "Parallel";
+			CsvResultWriter.Append(filePath, result);
 
-                CsvResultWriter.Append(filePath, result);
+			Console.WriteLine($"Czas: {result.RenderTimeMs,5} ms");
+		}
 
-                Console.WriteLine($"Czas: {result.RenderTimeMs,5} ms");
-            }
-
-            Console.WriteLine("\nTest zakończony. Plik zapisany pomyślnie.");
-            calc.Dispose();
-            Console.ReadKey();
-        }
-    }
-    
+		Console.WriteLine("\nTest zakończony. Plik zapisany pomyślnie.");
+		Console.ReadKey();
+	}
 }

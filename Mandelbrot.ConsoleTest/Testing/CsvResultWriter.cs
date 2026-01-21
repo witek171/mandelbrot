@@ -1,27 +1,37 @@
-﻿using Mandelbrot.ConsoleTest.Testing;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
 
-namespace Mandelbrot.ConsoleTest.Testing
+namespace Mandelbrot.ConsoleTest.Testing;
+
+public static class CsvResultWriter
 {
-    public static class CsvResultWriter
-    {
-        public static void Append(string path, RenderTestResult r)
-        {
-            bool exists = File.Exists(path);
+	public static void WriteHeader(string filePath, SystemInfo systemInfo)
+	{
+		using StreamWriter writer = new(filePath, append: false, Encoding.UTF8);
 
-            using var w = new StreamWriter(path, true);
+		writer.WriteLine($"# CPU: {systemInfo.CpuName}");
+		writer.WriteLine($"# Physical Cores: {systemInfo.PhysicalCores}");
+		writer.WriteLine($"# Logical Cores: {systemInfo.LogicalCores}");
+		writer.WriteLine($"# RAM: {systemInfo.TotalRamGb:F1} GB");
+		writer.WriteLine($"# OS: {systemInfo.OsVersion}");
+		writer.WriteLine($"# Test Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+		writer.WriteLine("#");
 
-            if (!exists)
-                w.WriteLine("Timestamp,Calculator,Width,Height,Iterations,Threads,TimeMs,Zoom");
+		writer.WriteLine("Calculator,Width,Height,MaxIterations,Threads,TimeMs,ZoomLevel,Timestamp");
+	}
 
-            w.WriteLine(
-                $"{r.Timestamp:O},{r.CalculatorName},{r.Width},{r.Height}," +
-                $"{r.MaxIterations},{r.ThreadsUsed},{r.RenderTimeMs},{r.ZoomLevel:F6}"
-            );
-        }
-    }
+	public static void Append(string filePath, RenderTestResult result)
+	{
+		using StreamWriter writer = new(filePath, append: true, Encoding.UTF8);
+
+		writer.WriteLine(
+			$"{result.CalculatorName}," +
+			$"{result.Width}," +
+			$"{result.Height}," +
+			$"{result.MaxIterations}," +
+			$"{result.ThreadsUsed}," +
+			$"{result.RenderTimeMs}," +
+			$"{result.ZoomLevel:G6}," +
+			$"{result.Timestamp:yyyy-MM-dd HH:mm:ss}"
+		);
+	}
 }

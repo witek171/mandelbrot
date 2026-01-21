@@ -1,35 +1,33 @@
 ﻿using Mandelbrot.Core.Calculators;
-using Mandelbrot.Core;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Mandelbrot.Core.Rendering;
 
-namespace Mandelbrot.ConsoleTest.Testing
+namespace Mandelbrot.ConsoleTest.Testing;
+
+public class RenderTestRunner
 {
-    public class RenderTestRunner
-    {
-        public RenderTestResult Run(
-        IMandelbrotCalculator calculator,
-        int width,
-        int height,
-        ViewPort viewPort,
-        int maxIterations,
-        ColorPalette palette)
-        {
-            var r = calculator.Render(width, height, viewPort, maxIterations, palette);
+	public RenderTestResult Run(
+		IMandelbrotCalculator calculator,
+		int width,
+		int height,
+		ViewPort viewPort,
+		int maxIterations,
+		int threadsUsed = 0)
+	{
+		IterationData data = calculator.CalculateIterations(
+			width,
+			height,
+			viewPort,
+			maxIterations);
 
-            return new RenderTestResult(
-                calculator.Name,
-                width,
-                height,
-                maxIterations,
-                r.ThreadsUsed,
-                r.RenderTimeMs,
-                r.ZoomLevel,
-                DateTime.Now
-            );
-        }
-    }
+		return new RenderTestResult(
+			calculator.Name,
+			width,
+			height,
+			maxIterations,
+			threadsUsed > 0 ? threadsUsed : Environment.ProcessorCount,
+			(long)data.CalculationTime.TotalMilliseconds,
+			viewPort.CalculateZoomLevel(),
+			DateTime.Now
+		);
+	}
 }

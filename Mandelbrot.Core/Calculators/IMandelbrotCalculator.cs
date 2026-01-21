@@ -1,31 +1,18 @@
-﻿using System.Drawing;
+﻿using System;
+using Mandelbrot.Core.Rendering;
 
 namespace Mandelbrot.Core.Calculators
 {
-	/// <summary>
-	/// Interfejs dla wszystkich implementacji kalkulatora Mandelbrota.
-	/// Pozwala na łatwe przełączanie między CPU/GPU.
-	/// </summary>
 	public interface IMandelbrotCalculator : IDisposable
 	{
-		/// <summary>
-		/// Nazwa implementacji (do wyświetlenia w UI)
-		/// </summary>
 		string Name { get; }
-
-		/// <summary>
-		/// Czy ta implementacja jest dostępna na tym systemie
-		/// </summary>
+		string Description { get; }
 		bool IsAvailable { get; }
 
-		/// <summary>
-		/// Renderuje fraktal Mandelbrota
-		/// </summary>
-		RenderResult Render(
+		IterationData CalculateIterations(
 			int width,
 			int height,
 			ViewPort viewPort,
-			int maxIterations,
-			ColorPalette colorPalette);
+			int maxIterations);
 	}
 }

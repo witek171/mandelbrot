@@ -17,15 +17,14 @@ internal class Program
 		if (!Directory.Exists(outDir))
 			Directory.CreateDirectory(outDir);
 
-		SystemInfo systemInfo = new();
-		systemInfo.Print();
+		SystemInfo.Print();
 
 		CpuParallelCalculator calc = (CpuParallelCalculator)factory.GetCalculator("CPU Parallel");
 
 		string timestamp = DateTime.Now.ToString("ddMMHHmm");
 		string filePath = Path.Combine(outDir, $"Skalowalnosc_{timestamp}.csv");
 
-		CsvResultWriter.WriteHeader(filePath, systemInfo);
+		CsvResultWriter.WriteHeader(filePath);
 
 		Console.WriteLine();
 		Console.WriteLine($"Zapis do: {filePath}");

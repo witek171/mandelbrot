@@ -4,15 +4,16 @@ namespace Mandelbrot.ConsoleTest.Testing;
 
 public static class CsvResultWriter
 {
-	public static void WriteHeader(string filePath, SystemInfo systemInfo)
+	public static void WriteHeader(string filePath)
 	{
 		using StreamWriter writer = new(filePath, append: false, Encoding.UTF8);
 
-		writer.WriteLine($"# CPU: {systemInfo.CpuName}");
-		writer.WriteLine($"# Physical Cores: {systemInfo.PhysicalCores}");
-		writer.WriteLine($"# Logical Cores: {systemInfo.LogicalCores}");
-		writer.WriteLine($"# RAM: {systemInfo.TotalRamGb:F1} GB");
-		writer.WriteLine($"# OS: {systemInfo.OsVersion}");
+		writer.WriteLine($"# CPU: {SystemInfo.CpuName}");
+		writer.WriteLine($"# GPU: {SystemInfo.GpuName}");
+		writer.WriteLine($"# Physical Cores: {SystemInfo.PhysicalCores}");
+		writer.WriteLine($"# Logical Cores: {SystemInfo.LogicalCores}");
+		writer.WriteLine($"# RAM: {SystemInfo.TotalRamGb:F1} GB");
+		writer.WriteLine($"# OS: {SystemInfo.OsVersion}");
 		writer.WriteLine($"# Test Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
 		writer.WriteLine("#");
 

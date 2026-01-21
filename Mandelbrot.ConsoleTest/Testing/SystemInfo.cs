@@ -4,22 +4,14 @@ using Microsoft.Win32;
 
 namespace Mandelbrot.ConsoleTest.Testing;
 
-public class SystemInfo
+public static class SystemInfo
 {
-	public SystemInfo()
-	{
-		CpuName = GetCpuName();
-		LogicalCores = Environment.ProcessorCount;
-		PhysicalCores = GetPhysicalCoreCount();
-		TotalRamGb = GetTotalRamGb();
-		OsVersion = RuntimeInformation.OSDescription;
-	}
-
-	public string CpuName { get; }
-	public int PhysicalCores { get; }
-	public int LogicalCores { get; }
-	public double TotalRamGb { get; }
-	public string OsVersion { get; }
+	public static string CpuName { get; } = GetCpuName();
+	public static string GpuName { get; } = GetGpuName();
+	public static int LogicalCores { get; } = Environment.ProcessorCount;
+	public static int PhysicalCores { get; } = GetPhysicalCoreCount();
+	public static double TotalRamGb { get; } = GetTotalRamGb();
+	public static string OsVersion { get; } = RuntimeInformation.OSDescription;
 
 	private static string GetCpuName()
 	{
@@ -37,6 +29,36 @@ public class SystemInfo
 		}
 
 		return Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "Unknown CPU";
+	}
+
+	private static string GetGpuName()
+	{
+		try
+		{
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				using ManagementObjectSearcher searcher = new(
+					"Select Name from Win32_VideoController");
+
+				List<string> gpus = [];
+
+				foreach (ManagementBaseObject item in searcher.Get())
+				{
+					string? name = item["Name"]?.ToString();
+					if (!string.IsNullOrWhiteSpace(name))
+						gpus.Add(name.Trim());
+				}
+
+				return gpus.Count > 0
+					? string.Join(" | ", gpus)
+					: "Unknown GPU";
+			}
+		}
+		catch
+		{
+		}
+
+		return "Unknown GPU";
 	}
 
 	private static int GetPhysicalCoreCount()
@@ -78,12 +100,13 @@ public class SystemInfo
 		return 0;
 	}
 
-	public void Print()
+	public static void Print()
 	{
 		Console.WriteLine("╔══════════════════════════════════════════════════════════╗");
 		Console.WriteLine("║                    INFORMACJE O SYSTEMIE                 ║");
 		Console.WriteLine("╠══════════════════════════════════════════════════════════╣");
 		Console.WriteLine($"║ CPU: {CpuName,-51} ║");
+		Console.WriteLine($"║ GPU: {GpuName,-51} ║");
 		Console.WriteLine($"║ Rdzenie: {PhysicalCores} fizycznych, {LogicalCores} logicznych                    ║");
 		Console.WriteLine($"║ RAM: {TotalRamGb:F1} GB                                              ║");
 		Console.WriteLine($"║ OS: {OsVersion,-52} ║");

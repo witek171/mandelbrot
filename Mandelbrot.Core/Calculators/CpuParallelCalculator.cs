@@ -9,6 +9,7 @@ public sealed class CpuParallelCalculator : IMandelbrotCalculator
 
 	public int ThreadCount
 	{
+		get => _threadCount;
 		set => _threadCount = Math.Max(1, value);
 	}
 

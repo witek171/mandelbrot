@@ -495,18 +495,49 @@ namespace Mandelbrot.WinForms
             _backButton.Enabled = _history.CanGoBack;
             _cacheLabel.Text = $"Cache: {_iterationCache.Count} ({_iterationCache.CurrentMemoryMB}MB)";
 
-            // Info o precyzji
-            if (_currentViewPort.IsNearPrecisionLimit)
+            if (_currentCalculator is GpuCalculator gpuCalc)
             {
-                _precisionLabel.Text = "⚠️ Limit precyzji double!";
-                _precisionLabel.ForeColor = Color.Red;
+                if (!gpuCalc.UsesDouble)
+                {
+                    if (zoom > 900000)
+                    {
+                        _precisionLabel.Text = "⚠️ Limit precyzji GPU (32-bit float)";
+                        _precisionLabel.ForeColor = Color.Red;
+                    }
+                    else
+                    {
+                        _precisionLabel.Text = "GPU (32-bit Float)";
+                        _precisionLabel.ForeColor = Color.DimGray;
+                    }
+                }
+                else
+                {
+                    if (zoom > 1e14)
+                    {
+                        _precisionLabel.Text = "⚠️ Limit precyzji Double";
+                        _precisionLabel.ForeColor = Color.Yellow;
+                    }
+                    else
+                    {
+                        _precisionLabel.Text = "GPU (64-bit Double)";
+                        _precisionLabel.ForeColor = Color.LightGreen;
+                    }
+                }
             }
             else
             {
-                _precisionLabel.Text = "";
+                if (zoom > 1e14)
+                {
+                    _precisionLabel.Text = "⚠️ Limit precyzji CPU";
+                    _precisionLabel.ForeColor = Color.Yellow;
+                }
+                else
+                {
+                    _precisionLabel.Text = "CPU (Double)";
+                    _precisionLabel.ForeColor = Color.White;
+                }
             }
         }
-
         #region UI Helpers
 
         private void AddLabel(string text, int size, FontStyle style, Color color, ref int y)

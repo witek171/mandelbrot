@@ -1,94 +1,86 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿namespace Mandelbrot.Core.Calculators;
 
-namespace Mandelbrot.Core.Calculators
+public class CalculatorFactory : IDisposable
 {
-	public class CalculatorFactory : IDisposable
+	private readonly Dictionary<string, Func<IMandelbrotCalculator>> _factories = new();
+	private readonly Dictionary<string, IMandelbrotCalculator> _cache = new();
+	private readonly List<string> _available = [];
+	private bool _disposed;
+
+	public CalculatorFactory()
 	{
-		private readonly Dictionary<string, IMandelbrotCalculator> _calculators;
-		private readonly List<string> _availableNames;
+		TryRegister("GPU (OpenCL)", CheckOpenCL, () => new GpuCalculator());
+		TryRegister("CPU Parallel", () => Environment.ProcessorCount > 1, () => new CpuParallelCalculator());
+		TryRegister("CPU Single", () => true, () => new CpuSingleCalculator());
+	}
 
-		public CalculatorFactory()
+	private void TryRegister(string name, Func<bool> isAvailable, Func<IMandelbrotCalculator> factory)
+	{
+		try
 		{
-			_calculators = new Dictionary<string, IMandelbrotCalculator>();
-			_availableNames = new List<string>();
+			if (!isAvailable())
+				return;
 
-			Console.WriteLine("╔════════════════════════════════════════════╗");
-			Console.WriteLine("║       Inicjalizacja kalkulatorów           ║");
-			Console.WriteLine("╚════════════════════════════════════════════╝\n");
+			_factories[name] = factory;
+			_available.Add(name);
+		}
+		catch
+		{
+			// ignored
+		}
+	}
 
-			RegisterSafe(() => new GpuHybridCalculator());
+	private static bool CheckOpenCL()
+	{
+		try
+		{
+			return Cloo.ComputePlatform.Platforms?.Count > 0;
+		}
+		catch
+		{
+			return false;
+		}
+	}
 
+	public IReadOnlyList<string> AvailableCalculators => _available;
 
-			RegisterSafe(() => new CpuFastCalculator());
-			RegisterSafe(() => new CpuParallelCalculator());
-			RegisterSafe(() => new CpuSingleThreadCalculator());
+	public IMandelbrotCalculator GetCalculator(string? name = null)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
-			//RegisterSafe(() => new GpuILGPUCalculatorSimple());
-			RegisterSafe(() => new GpuClooCalculator());
+		string key = name ?? _available.FirstOrDefault()
+			?? throw new InvalidOperationException("Brak dostępnych kalkulatorów!");
 
-			Console.WriteLine("\n════════════════════════════════════════════");
-			Console.WriteLine($"  Dostępne: {_availableNames.Count} kalkulatorów");
-			foreach (string name in _availableNames)
-			{
-				Console.WriteLine($"    • {name}");
-			}
+		if (!_factories.ContainsKey(key))
+			throw new ArgumentException($"Nieznany kalkulator: {key}");
 
-			Console.WriteLine("════════════════════════════════════════════\n");
+		if (!_cache.TryGetValue(key, out IMandelbrotCalculator? calculator))
+		{
+			calculator = _factories[key]();
+			_cache[key] = calculator;
 		}
 
-		private void RegisterSafe(Func<IMandelbrotCalculator> factory)
+		return calculator;
+	}
+
+	public void Dispose()
+	{
+		if (_disposed) return;
+		_disposed = true;
+
+		foreach (IMandelbrotCalculator calc in _cache.Values)
 		{
 			try
 			{
-                IMandelbrotCalculator calc = factory();
-				if (calc.IsAvailable && !_calculators.ContainsKey(calc.Name))
-				{
-					_calculators[calc.Name] = calc;
-					_availableNames.Add(calc.Name);
-					Console.WriteLine($"  ✓ {calc.Name}");
-				}
+				calc.Dispose();
 			}
-			catch (Exception ex)
+			catch
 			{
-				Console.WriteLine($"  ✗ Błąd: {ex.Message}");
+				// ignored
 			}
 		}
 
-		public IReadOnlyList<string> AvailableCalculators => _availableNames;
-
-		public IMandelbrotCalculator GetCalculator(string name)
-		{
-			if (_calculators.TryGetValue(name, out IMandelbrotCalculator calc))
-				return calc;
-			return _calculators.Values.First();
-		}
-
-		public IMandelbrotCalculator GetFastestCalculator()
-		{
-            // Hybrid jest najlepszy - automatycznie przełącza GPU/CPU
-            IMandelbrotCalculator hybrid = _calculators.Values.FirstOrDefault(c => c.Name.Contains("Hybrid"));
-			if (hybrid != null) return hybrid;
-
-            IMandelbrotCalculator fast = _calculators.Values.FirstOrDefault(c => c.Name.Contains("Fast"));
-			if (fast != null) return fast;
-
-			return _calculators.Values.First();
-		}
-
-		public void Dispose()
-		{
-			foreach (IMandelbrotCalculator calc in _calculators.Values)
-			{
-				try
-				{
-					calc.Dispose();
-				}
-				catch
-				{
-				}
-			}
-		}
+		_cache.Clear();
+		_factories.Clear();
 	}
 }

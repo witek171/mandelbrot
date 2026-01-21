@@ -1,22 +1,12 @@
-using System;
-using System.Windows.Forms;
+namespace Mandelbrot.WinForms;
 
-namespace Mandelbrot.WinForms
+static class Program
 {
-	static class Program
+	[STAThread]
+	static void Main()
 	{
-		/// <summary>
-		/// Główny punkt wejścia aplikacji.
-		/// </summary>
-		[STAThread]
-		static void Main()
-		{
-			// Włączenie stylów wizualnych Windows
-			Application.EnableVisualStyles();
-			Application.SetCompatibleTextRenderingDefault(false);
-
-			// Uruchomienie głównego formularza
-			Application.Run(new MainForm());
-		}
+		Application.EnableVisualStyles();
+		Application.SetCompatibleTextRenderingDefault(false);
+		Application.Run(new MainForm());
 	}
 }

@@ -1,265 +1,135 @@
-﻿using System;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Windows.Forms;
+﻿using System.Drawing.Drawing2D;
 
-namespace Mandelbrot.WinForms
+namespace Mandelbrot.WinForms;
+
+public class ZoomEventArgs : EventArgs
 {
-    /// <summary>
-    /// Argumenty zdarzenia zoomu przez zaznaczenie.
-    /// </summary>
-    public class ZoomEventArgs : EventArgs
-    {
-        public int StartX { get; set; }
-        public int StartY { get; set; }
-        public int EndX { get; set; }
-        public int EndY { get; set; }
-    }
+	public ZoomEventArgs(int startX, int startY, int endX, int endY)
+	{
+		StartX = startX;
+		StartY = startY;
+		EndX = endX;
+		EndY = endY;
+	}
 
-    /// <summary>
-    /// Argumenty zdarzenia zoomu kółkiem myszy.
-    /// </summary>
-    public class MouseWheelZoomEventArgs : EventArgs
-    {
-        public int X { get; set; }
-        public int Y { get; set; }
-        public bool ZoomIn { get; set; }
-    }
+	public int StartX { get; }
+	public int StartY { get; }
+	public int EndX { get; }
+	public int EndY { get; }
+}
 
-    /// <summary>
-    /// Panel wyświetlający fraktal z obsługą interakcji.
-    /// Nie skaluje istniejącego obrazu - każdy zoom wymaga nowego renderowania!
-    /// </summary>
-    public class MandelbrotPanel : Panel
-    {
-        private Bitmap _fractalImage;
-        private bool _isSelecting;
-        private Point _selectionStart;
-        private Point _selectionEnd;
+public class MouseWheelZoomEventArgs : EventArgs
+{
+	public MouseWheelZoomEventArgs(int x, int y, bool zoomIn)
+	{
+		X = x;
+		Y = y;
+		ZoomIn = zoomIn;
+	}
 
-        public event EventHandler<ZoomEventArgs> ZoomRequested;
-        public event EventHandler<MouseWheelZoomEventArgs> MouseWheelZoom;
-        public event EventHandler RightClickBack;
-        public event EventHandler<MouseEventArgs> MouseMoved;
+	public int X { get; }
+	public int Y { get; }
+	public bool ZoomIn { get; }
+}
 
-        public MandelbrotPanel()
-        {
-            this.DoubleBuffered = true;
-            this.SetStyle(
-                ControlStyles.AllPaintingInWmPaint |
-                ControlStyles.UserPaint |
-                ControlStyles.OptimizedDoubleBuffer |
-                ControlStyles.ResizeRedraw,
-                true);
+public class MandelbrotPanel : Panel
+{
+	private Bitmap _image;
+	private bool _isSelecting;
+	private Point _selectionEnd;
+	private Point _selectionStart;
 
-            this.BackColor = Color.Black;
-            this.Cursor = Cursors.Cross;
-        }
+	public MandelbrotPanel()
+	{
+		DoubleBuffered = true;
+		SetStyle(ControlStyles.AllPaintingInWmPaint |
+				ControlStyles.UserPaint |
+				ControlStyles.OptimizedDoubleBuffer, true);
+	}
 
-        public bool HasImage => _fractalImage != null;
+	public event EventHandler<ZoomEventArgs> ZoomRequested;
+	public event EventHandler<MouseWheelZoomEventArgs> MouseWheelZoom;
+	public event EventHandler RightClickBack;
+	public event MouseEventHandler MouseMoved;
 
-        /// <summary>
-        /// Ustawia NOWY obraz fraktala (nie skaluje starego!).
-        /// </summary>
-        public void SetImage(Bitmap image)
-        {
-            var oldImage = _fractalImage;
-            _fractalImage = image;
-            oldImage?.Dispose();
-            this.Invalidate();
-        }
+	public void SetImage(Bitmap bitmap)
+	{
+		_image = bitmap;
+		Invalidate();
+	}
 
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            Graphics g = e.Graphics;
+	protected override void OnPaint(PaintEventArgs e)
+	{
+		if (_image != null) e.Graphics.DrawImage(_image, 0, 0);
 
-            if (_fractalImage != null)
-            {
-                // Rysowanie obrazu w pełnym rozmiarze panelu
-                g.InterpolationMode = InterpolationMode.NearestNeighbor;
-                g.DrawImage(_fractalImage, 0, 0, this.Width, this.Height);
-            }
-            else
-            {
-                // Placeholder
-                g.Clear(Color.FromArgb(20, 20, 20));
-                using (var font = new Font("Segoe UI", 16))
-                using (var brush = new SolidBrush(Color.FromArgb(80, 80, 80)))
-                {
-                    string msg = "Kliknij 'RENDERUJ' aby wygenerować fraktal";
-                    var size = g.MeasureString(msg, font);
-                    g.DrawString(msg, font, brush,
-                        (Width - size.Width) / 2, (Height - size.Height) / 2);
-                }
-            }
+		if (_isSelecting)
+		{
+			Rectangle rect = GetSelectionRectangle();
+			using Pen pen = new(Color.White, 2) { DashStyle = DashStyle.Dash };
+			using SolidBrush brush = new(Color.FromArgb(50, 255, 255, 255));
+			e.Graphics.FillRectangle(brush, rect);
+			e.Graphics.DrawRectangle(pen, rect);
+		}
+	}
 
-            // Rysowanie zaznaczenia
-            if (_isSelecting)
-            {
-                DrawSelection(g);
-            }
-        }
+	protected override void OnMouseDown(MouseEventArgs e)
+	{
+		base.OnMouseDown(e);
 
-        private void DrawSelection(Graphics g)
-        {
-            int x = Math.Min(_selectionStart.X, _selectionEnd.X);
-            int y = Math.Min(_selectionStart.Y, _selectionEnd.Y);
-            int w = Math.Abs(_selectionEnd.X - _selectionStart.X);
-            int h = Math.Abs(_selectionEnd.Y - _selectionStart.Y);
+		if (e.Button == MouseButtons.Left)
+		{
+			_isSelecting = true;
+			_selectionStart = e.Location;
+			_selectionEnd = e.Location;
+		}
+		else if (e.Button == MouseButtons.Right)
+		{
+			RightClickBack?.Invoke(this, EventArgs.Empty);
+		}
+	}
 
-            if (w < 2 || h < 2) return;
+	protected override void OnMouseMove(MouseEventArgs e)
+	{
+		base.OnMouseMove(e);
+		MouseMoved?.Invoke(this, e);
 
-            // Przyciemnienie obszaru poza zaznaczeniem
-            using (var dimBrush = new SolidBrush(Color.FromArgb(120, 0, 0, 0)))
-            {
-                // Górny pasek
-                g.FillRectangle(dimBrush, 0, 0, Width, y);
-                // Dolny pasek
-                g.FillRectangle(dimBrush, 0, y + h, Width, Height - y - h);
-                // Lewy pasek
-                g.FillRectangle(dimBrush, 0, y, x, h);
-                // Prawy pasek
-                g.FillRectangle(dimBrush, x + w, y, Width - x - w, h);
-            }
+		if (_isSelecting)
+		{
+			_selectionEnd = e.Location;
+			Invalidate();
+		}
+	}
 
-            // Ramka zaznaczenia
-            using (var pen = new Pen(Color.FromArgb(255, 0, 180, 255), 2))
-            {
-                g.DrawRectangle(pen, x, y, w, h);
-            }
+	protected override void OnMouseUp(MouseEventArgs e)
+	{
+		base.OnMouseUp(e);
 
-            // Narożniki
-            int cs = 10;
-            using (var brush = new SolidBrush(Color.FromArgb(255, 0, 180, 255)))
-            {
-                g.FillRectangle(brush, x - cs/2, y - cs/2, cs, cs);
-                g.FillRectangle(brush, x + w - cs/2, y - cs/2, cs, cs);
-                g.FillRectangle(brush, x - cs/2, y + h - cs/2, cs, cs);
-                g.FillRectangle(brush, x + w - cs/2, y + h - cs/2, cs, cs);
-            }
+		if (_isSelecting && e.Button == MouseButtons.Left)
+		{
+			_isSelecting = false;
+			Invalidate();
 
-            // Rozmiar zaznaczenia
-            if (w > 80 && h > 50)
-            {
-                string info = $"{w} × {h} px";
-                using (var font = new Font("Segoe UI", 10, FontStyle.Bold))
-                {
-                    var size = g.MeasureString(info, font);
-                    float tx = x + (w - size.Width) / 2;
-                    float ty = y + (h - size.Height) / 2;
+			Rectangle rect = GetSelectionRectangle();
+			if (rect.Width > 10 && rect.Height > 10)
+				ZoomRequested?.Invoke(this, new ZoomEventArgs(
+					rect.X, rect.Y,
+					rect.X + rect.Width,
+					rect.Y + rect.Height));
+		}
+	}
 
-                    using (var bgBrush = new SolidBrush(Color.FromArgb(180, 0, 0, 0)))
-                    {
-                        g.FillRectangle(bgBrush, tx - 5, ty - 2, size.Width + 10, size.Height + 4);
-                    }
-                    using (var textBrush = new SolidBrush(Color.White))
-                    {
-                        g.DrawString(info, font, textBrush, tx, ty);
-                    }
-                }
-            }
-        }
+	protected override void OnMouseWheel(MouseEventArgs e)
+	{
+		base.OnMouseWheel(e);
+		MouseWheelZoom?.Invoke(this, new MouseWheelZoomEventArgs(e.X, e.Y, e.Delta > 0));
+	}
 
-        protected override void OnMouseDown(MouseEventArgs e)
-        {
-            base.OnMouseDown(e);
-
-            if (e.Button == MouseButtons.Left && _fractalImage != null)
-            {
-                _isSelecting = true;
-                _selectionStart = e.Location;
-                _selectionEnd = e.Location;
-                this.Capture = true;
-            }
-            else if (e.Button == MouseButtons.Right)
-            {
-                RightClickBack?.Invoke(this, EventArgs.Empty);
-            }
-        }
-
-        protected override void OnMouseMove(MouseEventArgs e)
-        {
-            base.OnMouseMove(e);
-            MouseMoved?.Invoke(this, e);
-
-            if (_isSelecting)
-            {
-                double panelAspect = (double)Width / Height;
-
-                int dx = e.X - _selectionStart.X;
-                int dy = e.Y - _selectionStart.Y;
-
-                int newWidth, newHeight;
-
-                if (Math.Abs(dx) > Math.Abs(dy * panelAspect))
-                {
-                    newWidth = dx;
-                    newHeight = (int)(Math.Abs(dx) / panelAspect);
-                    if (dy < 0) newHeight = -newHeight;
-                }
-                else
-                {
-                    newHeight = dy;
-                    newWidth = (int)(Math.Abs(dy) * panelAspect);
-                    if (dx < 0) newWidth = -newWidth;
-                }
-
-                _selectionEnd = new Point(_selectionStart.X + newWidth, _selectionStart.Y + newHeight);
-
-                this.Invalidate();
-            }
-        }
-
-        protected override void OnMouseUp(MouseEventArgs e)
-        {
-            base.OnMouseUp(e);
-
-            if (_isSelecting && e.Button == MouseButtons.Left)
-            {
-                _isSelecting = false;
-                this.Capture = false;
-
-                int w = Math.Abs(_selectionEnd.X - _selectionStart.X);
-                int h = Math.Abs(_selectionEnd.Y - _selectionStart.Y);
-
-                if (w >= 10 && h >= 10)
-                {
-                    ZoomRequested?.Invoke(this, new ZoomEventArgs
-                    {
-                        StartX = _selectionStart.X,
-                        StartY = _selectionStart.Y,
-                        EndX = _selectionEnd.X,
-                        EndY = _selectionEnd.Y
-                    });
-                }
-
-                this.Invalidate();
-            }
-        }
-
-        protected override void OnMouseWheel(MouseEventArgs e)
-        {
-            base.OnMouseWheel(e);
-
-            if (_fractalImage != null)
-            {
-                MouseWheelZoom?.Invoke(this, new MouseWheelZoomEventArgs
-                {
-                    X = e.X,
-                    Y = e.Y,
-                    ZoomIn = e.Delta > 0
-                });
-            }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _fractalImage?.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-    }
+	private Rectangle GetSelectionRectangle()
+	{
+		int x = Math.Min(_selectionStart.X, _selectionEnd.X);
+		int y = Math.Min(_selectionStart.Y, _selectionEnd.Y);
+		int w = Math.Abs(_selectionEnd.X - _selectionStart.X);
+		int h = Math.Abs(_selectionEnd.Y - _selectionStart.Y);
+		return new Rectangle(x, y, w, h);
+	}
 }

@@ -1,29 +1,12 @@
-﻿using System;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using Cloo;
 using Mandelbrot.Core.Rendering;
 
-namespace Mandelbrot.Core.Calculators
+namespace Mandelbrot.Core.Calculators;
+
+public sealed class GpuCalculator : IMandelbrotCalculator
 {
-    public sealed class GpuCalculator : IMandelbrotCalculator
-    {
-        public string Name => "GPU (OpenCL)";
-        public string Description { get; private set; }
-        public bool IsAvailable { get; private set; }
-        public bool UsesDouble { get; private set; }
-
-        private ComputeContext _context;
-        private ComputeCommandQueue _queue;
-        private ComputeKernel _kernel;
-        private ComputeProgram _program;
-
-        // Stałe rozmiary dla bezpieczeństwa Integry
-        private readonly long[] _localWorkSize = { 16, 16 };
-
-        // Używamy słów kluczowych #TYPE# i #S#, które podmienimy w C#
-        // To jest bezpieczne i nie wywali błędu formatowania C#
-        private const string KernelTemplate = @"
+	private const string KernelTemplate = @"
             #EXTENSION#
 
             __kernel void mandelbrot(
@@ -65,131 +48,120 @@ namespace Mandelbrot.Core.Calculators
                     output[py * width + px] = iter;
             }";
 
-        public GpuCalculator()
-        {
-            Initialize();
-        }
+	private readonly long[] _localWorkSize = { 16, 16 };
 
-        private void Initialize()
-        {
-            try
-            {
-                // 1. Znajdź urządzenie (dowolne GPU)
-                var device = ComputePlatform.Platforms
-                    .SelectMany(p => p.Devices)
-                    .OrderByDescending(d => d.Type == ComputeDeviceTypes.Gpu)
-                    .FirstOrDefault();
+	private ComputeContext _context;
+	private ComputeKernel _kernel;
+	private ComputeProgram _program;
+	private ComputeCommandQueue _queue;
 
-                if (device == null)
-                {
-                    IsAvailable = false;
-                    return;
-                }
+	public GpuCalculator()
+	{
+		Initialize();
+	}
 
-                // 2. Sprawdź czy obsługuje double
-                UsesDouble = device.Extensions.Contains("cl_khr_fp64") ||
-                             device.Extensions.Contains("cl_amd_fp64");
+	public bool UsesDouble { get; private set; }
+	public string Name => "GPU (OpenCL)";
 
-                // 3. Przygotuj kod (Podmiana tekstu zamiast string.Format)
-                string source = KernelTemplate;
+	public IterationData CalculateIterations(int width, int height, ViewPort viewPort, int maxIterations)
+	{
+		Stopwatch sw = Stopwatch.StartNew();
+		int[] iterations = new int[width * height];
 
-                if (UsesDouble)
-                {
-                    source = source.Replace("#EXTENSION#", "#pragma OPENCL EXTENSION cl_khr_fp64 : enable");
-                    source = source.Replace("#TYPE#", "double");
-                    source = source.Replace("#S#", ""); // Brak suffixu dla double
-                }
-                else
-                {
-                    source = source.Replace("#EXTENSION#", "");
-                    source = source.Replace("#TYPE#", "float");
-                    source = source.Replace("#S#", "f"); // Dodaj 'f' (np. 4.0f)
-                }
+		double xScale = viewPort.Width / width;
+		double yScale = viewPort.Height / height;
 
-                // 4. Inicjalizacja OpenCL
-                var props = new ComputeContextPropertyList(device.Platform);
-                _context = new ComputeContext(new[] { device }, props, null, IntPtr.Zero);
-                _queue = new ComputeCommandQueue(_context, device, ComputeCommandQueueFlags.None);
+		using (ComputeBuffer<int> buffer = new(_context, ComputeMemoryFlags.WriteOnly, iterations.Length))
+		{
+			_kernel.SetMemoryArgument(0, buffer);
 
-                _program = new ComputeProgram(_context, source);
+			if (UsesDouble)
+			{
+				_kernel.SetValueArgument(1, viewPort.MinReal);
+				_kernel.SetValueArgument(2, viewPort.MaxImaginary);
+				_kernel.SetValueArgument(3, xScale);
+				_kernel.SetValueArgument(4, yScale);
+			}
+			else
+			{
+				_kernel.SetValueArgument(1, (float)viewPort.MinReal);
+				_kernel.SetValueArgument(2, (float)viewPort.MaxImaginary);
+				_kernel.SetValueArgument(3, (float)xScale);
+				_kernel.SetValueArgument(4, (float)yScale);
+			}
 
-                try
-                {
-                    // Budowanie programu
-                    _program.Build(null, null, null, IntPtr.Zero);
-                }
-                catch (BuildProgramFailureComputeException)
-                {
-                    // Wypisz błąd sterownika, jeśli kompilacja w GPU padnie
-                    string log = _program.GetBuildLog(device);
-                    Console.WriteLine($"GPU BUILD LOG: {log}");
-                    throw;
-                }
+			_kernel.SetValueArgument(5, width);
+			_kernel.SetValueArgument(6, maxIterations);
 
-                _kernel = _program.CreateKernel("mandelbrot");
+			long gW = (width + 15) / 16 * 16;
+			long gH = (height + 15) / 16 * 16;
 
-                Description = $"{device.Name.Trim()} ({(UsesDouble ? "64-bit" : "32-bit")})";
-                IsAvailable = true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"GpuCalculator Init Error: {ex.Message}");
-                IsAvailable = false;
-            }
-        }
+			_queue.Execute(_kernel, null, new[] { gW, gH }, _localWorkSize, null);
+			_queue.ReadFromBuffer(buffer, ref iterations, true, null);
+		}
 
-        public IterationData CalculateIterations(int width, int height, ViewPort viewPort, int maxIterations)
-        {
-            if (!IsAvailable) throw new InvalidOperationException("GPU niedostępne");
+		sw.Stop();
+		return new IterationData(iterations, width, height, maxIterations, viewPort, sw.Elapsed);
+	}
 
-            var sw = Stopwatch.StartNew();
-            int[] iterations = new int[width * height];
+	public void Dispose()
+	{
+		_kernel.Dispose();
+		_program.Dispose();
+		_queue.Dispose();
+		_context.Dispose();
+	}
 
-            double xScale = viewPort.Width / width;
-            double yScale = viewPort.Height / height;
+	private void Initialize()
+	{
+		try
+		{
+			ComputeDevice? device = ComputePlatform.Platforms
+				.SelectMany(p => p.Devices)
+				.OrderByDescending(d => d.Type == ComputeDeviceTypes.Gpu)
+				.FirstOrDefault();
 
-            using (var buffer = new ComputeBuffer<int>(_context, ComputeMemoryFlags.WriteOnly, iterations.Length))
-            {
-                _kernel.SetMemoryArgument(0, buffer);
+			if (device == null)
+				return;
 
-                // Przekazywanie argumentów
-                if (UsesDouble)
-                {
-                    _kernel.SetValueArgument(1, viewPort.MinReal);
-                    _kernel.SetValueArgument(2, viewPort.MaxImaginary);
-                    _kernel.SetValueArgument(3, xScale);
-                    _kernel.SetValueArgument(4, yScale);
-                }
-                else
-                {
-                    // Rzutowanie na float
-                    _kernel.SetValueArgument(1, (float)viewPort.MinReal);
-                    _kernel.SetValueArgument(2, (float)viewPort.MaxImaginary);
-                    _kernel.SetValueArgument(3, (float)xScale);
-                    _kernel.SetValueArgument(4, (float)yScale);
-                }
+			UsesDouble = device.Extensions.Contains("cl_khr_fp64") ||
+						device.Extensions.Contains("cl_amd_fp64");
 
-                _kernel.SetValueArgument(5, width);
-                _kernel.SetValueArgument(6, maxIterations);
+			string source = KernelTemplate;
 
-                // Wyrównanie zadań do 16 (ważne dla Integry)
-                long gW = ((width + 15) / 16) * 16;
-                long gH = ((height + 15) / 16) * 16;
+			if (UsesDouble)
+			{
+				source = source.Replace("#EXTENSION#", "#pragma OPENCL EXTENSION cl_khr_fp64 : enable");
+				source = source.Replace("#TYPE#", "double");
+				source = source.Replace("#S#", "");
+			}
+			else
+			{
+				source = source.Replace("#EXTENSION#", "");
+				source = source.Replace("#TYPE#", "float");
+				source = source.Replace("#S#", "f");
+			}
 
-                _queue.Execute(_kernel, null, new[] { gW, gH }, _localWorkSize, null);
-                _queue.ReadFromBuffer(buffer, ref iterations, true, null);
-            }
+			ComputeContextPropertyList props = new(device.Platform);
+			_context = new ComputeContext(new[] { device }, props, null, IntPtr.Zero);
+			_queue = new ComputeCommandQueue(_context, device, ComputeCommandQueueFlags.None);
+			_program = new ComputeProgram(_context, source);
 
-            sw.Stop();
-            return new IterationData(iterations, width, height, maxIterations, viewPort, sw.Elapsed);
-        }
+			try
+			{
+				_program.Build(null, null, null, IntPtr.Zero);
+			}
+			catch (Exception ex)
+			{
+				string log = _program.GetBuildLog(device);
+				throw new InvalidOperationException($"Błąd kompilacji kernela OpenCL:\n{log}", ex);
+			}
 
-        public void Dispose()
-        {
-            _kernel?.Dispose();
-            _program?.Dispose();
-            _queue?.Dispose();
-            _context?.Dispose();
-        }
-    }
+			_kernel = _program.CreateKernel("mandelbrot");
+		}
+		catch
+		{
+			// ignored
+		}
+	}
 }

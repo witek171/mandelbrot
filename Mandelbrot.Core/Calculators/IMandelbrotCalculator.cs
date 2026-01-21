@@ -1,18 +1,14 @@
-﻿using System;
-using Mandelbrot.Core.Rendering;
+﻿using Mandelbrot.Core.Rendering;
 
-namespace Mandelbrot.Core.Calculators
+namespace Mandelbrot.Core.Calculators;
+
+public interface IMandelbrotCalculator : IDisposable
 {
-	public interface IMandelbrotCalculator : IDisposable
-	{
-		string Name { get; }
-		string Description { get; }
-		bool IsAvailable { get; }
+	string Name { get; }
 
-		IterationData CalculateIterations(
-			int width,
-			int height,
-			ViewPort viewPort,
-			int maxIterations);
-	}
+	IterationData CalculateIterations(
+		int width,
+		int height,
+		ViewPort viewPort,
+		int maxIterations);
 }

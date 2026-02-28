@@ -1,4 +1,6 @@
-﻿# Wizualizacja zbioru Mandelbrota w C# z interfejsem Windows Forms. Aplikacja umożliwia eksplorację fraktala z zoomem, wybór silnika obliczeń (CPU/GPU) oraz wielu palet kolorów.
+﻿# Wizualizacja zbioru Mandelbrota w C# Windows Forms
+ 
+Aplikacja umożliwia eksplorację fraktala z zoomem, wybór silnika obliczeń (CPU/GPU) oraz wielu palet kolorów.
 
 ## Nawigacja i widok
 - **Zoom** – powiększanie i pomniejszanie widoku (kliknięcie lub zaznaczenie obszaru)
@@ -31,3 +33,4 @@ Program uruchamia benchmarki (m.in. skalowalność względem liczby wątków) i 
 - **ComputeSharp** – GPU compute dla .NET
 - **ILGPU** / **ILGPU.Algorithms** – akceleracja GPU
 - **System.Drawing.Common** – operacje na bitmapach
+
